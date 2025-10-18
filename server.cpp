@@ -54,6 +54,11 @@ int main(int argc, char** argv) {
       std::string feedback = "<SERVER> ";
       feedback += response;
       write(s2c, feedback.c_str(), feedback.length());
+
+      if (response == "QUIT") {
+        std::cout << "Quitting...\n";
+        break;
+      }
     } catch (std::invalid_argument& e) {
       std::string error = "<ERROR> " + std::string(e.what());
       write(s2c, error.c_str(), error.length());

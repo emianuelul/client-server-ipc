@@ -53,7 +53,7 @@ class SessionManager {
       return true;
     }
 
-    return true;
+    return false;
   }
 
   bool isLoggedIn() { return isLogged; }

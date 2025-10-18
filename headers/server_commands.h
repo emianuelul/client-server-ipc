@@ -101,12 +101,18 @@ class GetLoggedUsersCommand : public Command {
 
 class LogOutCommand : public Command {
  public:
-  std::string execute() override { return std::string("Loggin out...\n"); }
+  std::string execute() override {
+    if (SessionManager::getInstance().logout()) {
+      return std::string("Logged Out Successfully");
+    } else {
+      return std::string("Can't log out if you're not logged in!");
+    }
+  }
 };
 
 class QuitCommand : public Command {
  public:
-  std::string execute() override { return std::string("Quitting...\n"); }
+  std::string execute() override { return std::string("QUIT"); }
 };
 
 class GetProcInfoCommand : public Command {

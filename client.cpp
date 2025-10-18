@@ -23,11 +23,15 @@ int main(int argc, char** argv) {
 
     write(c2s, input.c_str(), input.length());
 
-    char serverBuffer[256];
+    char serverBuffer[1024];
     int bytes = read(s2c, &serverBuffer, sizeof(serverBuffer));
 
     if (bytes > 0) {
       serverBuffer[bytes] = '\0';
+      if (std::string(serverBuffer).find("QUIT") != std::string::npos) {
+        break;
+      }
+
       std::cout << serverBuffer << '\n';
     }
   }
