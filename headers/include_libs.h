@@ -8,5 +8,8 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <fstream>
 #include <iostream>
-#include "headers/server_commands.h"
+#include <memory>
+#include <stdexcept>
+#include "server_commands.h"

@@ -16,7 +16,7 @@ int main(int argc, char** argv) {
 
   while (true) {
     std::string input;
-    std::cout << "Enter a command: ";
+    std::cout << "<CLIENT> Enter a command: ";
     std::getline(std::cin, input);
 
     input += '\n';
@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
 
     if (bytes > 0) {
       serverBuffer[bytes] = '\0';
-      std::cout << serverBuffer << '\n';
+      // std::cout << serverBuffer << '\n';
     }
   }
 

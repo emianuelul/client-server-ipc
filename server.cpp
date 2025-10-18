@@ -11,11 +11,11 @@ int main(int argc, char** argv) {
 
   mkdir("./temp", 0777);
   if (mkfifo("./temp/server2client", 0777) == -1) {
-    std::cout << errno;
+    std::cout << "<SERVER> Error code: " << errno << '\n';
     exit(1);
   }
   if (mkfifo("./temp/client2server", 0777) == -1) {
-    std::cout << errno;
+    std::cout << "<SERVER> Error code: " << errno << '\n';
     exit(1);
   }
 
@@ -23,33 +23,41 @@ int main(int argc, char** argv) {
   int s2c = open("./temp/server2client", O_WRONLY);
 
   if (c2s == -1) {
-    std::cout << "Eroare la deschiderea lui client2server in server\n";
+    std::cout << "<SERVER> Eroare la deschiderea lui client2server in server\n";
     exit(2);
   }
 
   if (s2c == -1) {
-    std::cout << "Eroare la deschiderea lui server2client in server\n";
+    std::cout << "<SERVER> Eroare la deschiderea lui server2client in server\n";
     exit(2);
   }
 
   while (true) {
-    std::string feedback = "Serverul a primit comanda: ";
     char clientBuffer[256];
     int bytes = read(c2s, &clientBuffer, sizeof(clientBuffer));
 
     if (bytes <= 0) {
-      std::cout << "Clientul s-a deconectat.\n Closing Server...\n";
+      std::cout << "<SERVER> Clientul s-a deconectat.\n Closing Server...\n";
       break;
     }
     clientBuffer[bytes] = '\0';
-    std::string comanda = clientBuffer;
+    std::string command = clientBuffer;
 
-    if (comanda == "login\n") {
-      feedback = "Logging in...";
-    } else {
-      feedback += comanda;
+    if (!command.empty() && command.back() == '\n') {
+      command.pop_back();
     }
 
+    try {
+      auto commandObj = CommandFactory::createCommand(command);
+      commandObj->execute();
+    } catch (std::invalid_argument& e) {
+      std::string error = "<ERROR> " + std::string(e.what());
+      write(s2c, error.c_str(), error.length());
+    }
+
+    std::string feedback = "";
+    feedback += command;
+    feedback += '\n';
     write(s2c, feedback.c_str(), feedback.length());
   }
 
