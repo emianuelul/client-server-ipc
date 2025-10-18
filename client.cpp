@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
 
     if (bytes > 0) {
       serverBuffer[bytes] = '\0';
-      // std::cout << serverBuffer << '\n';
+      std::cout << serverBuffer << '\n';
     }
   }
 

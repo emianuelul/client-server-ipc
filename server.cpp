@@ -49,16 +49,15 @@ int main(int argc, char** argv) {
 
     try {
       auto commandObj = CommandFactory::createCommand(command);
-      commandObj->execute();
+      std::string response = commandObj->execute();
+
+      std::string feedback = "<SERVER> ";
+      feedback += response;
+      write(s2c, feedback.c_str(), feedback.length());
     } catch (std::invalid_argument& e) {
       std::string error = "<ERROR> " + std::string(e.what());
       write(s2c, error.c_str(), error.length());
     }
-
-    std::string feedback = "";
-    feedback += command;
-    feedback += '\n';
-    write(s2c, feedback.c_str(), feedback.length());
   }
 
   close(c2s);

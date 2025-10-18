@@ -47,8 +47,13 @@ class SessionManager {
   }
 
   bool logout() {
-    currUser.clear();
-    isLogged = false;
+    if (isLogged) {
+      currUser.clear();
+      isLogged = false;
+      return true;
+    }
+
+    return true;
   }
 
   bool isLoggedIn() { return isLogged; }

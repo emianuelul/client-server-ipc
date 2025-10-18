@@ -4,7 +4,7 @@
 
 class Command {
  public:
-  virtual void execute() = 0;
+  virtual std::string execute() = 0;
   virtual ~Command() {};
 };
 
@@ -15,11 +15,11 @@ class LogInCommand : public Command {
  public:
   LogInCommand(std::string user) : user(user) {}
 
-  void execute() override {
+  std::string execute() override {
     if (SessionManager::getInstance().login(this->user)) {
-      std::cout << "<SERVER> LOGGED IN SUCCESSFULLY\n";
+      return std::string("Logged In Successfully");
     } else {
-      std::cout << "<SERVER> WRONG USERNAME OR PASSWORD\n";
+      return std::string("Wrong Name");
     }
   }
 };
@@ -27,24 +27,86 @@ class LogInCommand : public Command {
 class GetLoggedUsersCommand : public Command {
  private:
  public:
-  void execute() override {
-    if (SessionManager::getInstance().isLoggedIn()) {
-      std::cout << "<SERVER> Current User: "
-                << SessionManager::getInstance().getCurrentUser() << '\n';
+  std::string execute() override {
+    if (!SessionManager::getInstance().isLoggedIn()) {
+      return std::string(
+          "You must be logged in in order to use this command\n");
+    }
+
+    int pipefd[2];
+    if (pipe(pipefd) == -1) {
+      return std::string("<ERROR> Error creating pipe\n");
+    }
+
+    pid_t pid = fork();
+    if (pid == -1) {
+      return std::string("<ERROR> Error forking \n");
+    }
+
+    if (pid == 0) {
+      close(pipefd[0]);
+
+      utmpname("/var/log/wtmp");
+
+      setutent();
+      struct utmp* entry;
+      std::string output = "Logged in users: \n";
+
+      std::map<std::string, utmp> active_sessions;
+
+      while ((entry = getutent()) != NULL) {
+        std::string line = std::string(entry->ut_line);
+
+        if (entry->ut_type == USER_PROCESS) {
+          active_sessions[line] = *entry;
+        } else if (entry->ut_type == DEAD_PROCESS) {
+          active_sessions.erase(line);
+        }
+      }
+
+      endutent();
+
+      if (active_sessions.empty()) {
+        output += "No active user sessions!\n";
+      } else {
+        for (const auto& [line, session] : active_sessions) {
+          time_t login_time = session.ut_tv.tv_sec;
+          output += "User: " + std::string(session.ut_user) +
+                    " | Host: " + std::string(session.ut_host) +
+                    " | Time of entry: " + std::string(ctime(&login_time));
+        }
+      }
+
+      endutent();
+      write(pipefd[1], output.c_str(), output.length());
+      close(pipefd[1]);
+      exit(0);
     } else {
-      std::cout << "<SERVER> You must be logged to access this command!\n";
+      close(pipefd[1]);
+
+      char buffer[1024];
+      int bytes = read(pipefd[0], buffer, sizeof(buffer));
+      if (bytes > 0) {
+        buffer[bytes] = '\0';
+        return std::string(buffer);
+      }
+
+      return std::string("Can't read utmp");
+
+      close(pipefd[0]);
+      wait(NULL);
     }
   }
 };
 
 class LogOutCommand : public Command {
  public:
-  void execute() override { std::cout << "Loggin out...\n"; }
+  std::string execute() override { return std::string("Loggin out...\n"); }
 };
 
 class QuitCommand : public Command {
  public:
-  void execute() override { std::cout << "Quitting...\n"; }
+  std::string execute() override { return std::string("Quitting...\n"); }
 };
 
 class GetProcInfoCommand : public Command {
@@ -53,7 +115,7 @@ class GetProcInfoCommand : public Command {
 
  public:
   GetProcInfoCommand(std::string process) { this->process = process; }
-  void execute() override { std::cout << "Process info...\n"; }
+  std::string execute() override { return std::string("Process info...\n"); }
 };
 
 class CommandFactory {
