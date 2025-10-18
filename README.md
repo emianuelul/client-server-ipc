@@ -7,7 +7,7 @@ Project done as homework for a Uni Subject.
 - ## Shell Scripts:
 
   - I've written 2 shell scripts:
-    - `./shell_scripts/compile_apps.sh` to speed up copiling, compiles both client.cpp and server.cpp at the same time
+    - `./shell_scripts/compile_apps.sh` to speed up compiling, compiles both client.cpp and server.cpp at the same time
     - `./shell_scripts/run_client.sh` -> _USE THIS TO RUN THE APP_
 
 - ## Commands:
