@@ -16,4 +16,5 @@
 #include <memory>
 #include <stdexcept>
 #include <vector>
+#include "exceptions.h"
 #include "server_commands.h"

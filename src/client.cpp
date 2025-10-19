@@ -1,4 +1,4 @@
-#include "headers/include_libs.h"
+#include "../headers/include_libs.h"
 
 int main(int argc, char** argv) {
   int c2s = open("./temp/client2server", O_WRONLY);

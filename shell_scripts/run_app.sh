@@ -1,5 +1,5 @@
 #!/bin/bash
 
-./server &
+./dist/server &
 sleep 1
-./client
+./dist/client

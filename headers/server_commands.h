@@ -15,19 +15,26 @@ class LogInCommand : public Command {
  public:
   LogInCommand(std::string user) : user(user) {}
 
-  // COMUNICARE PRIN PIPE-URI ANONIME
+  // COMUNICARE PRIN FIFO-URI
   std::string execute() override {
-    int pipefd[2];
-    pipe(pipefd);
+    const char* fifo_path = "./temp/login_fifo";
+
+    unlink(fifo_path);
+    if (mkfifo(fifo_path, 0777) == -1) {
+      throw PipeException("Error creating FIFO");
+    }
 
     int pid = fork();
-
     if (pid == -1) {
-      return std::string("<ERROR> Error forking");
+      unlink(fifo_path);
+      throw ForkException("Error Forking");
     }
 
     if (pid == 0) {
-      close(pipefd[0]);
+      int fifo_fd = open(fifo_path, O_WRONLY);
+      if (fifo_fd == -1) {
+        _exit(1);
+      }
 
       std::string output;
       if (SessionManager::getInstance().login(this->user)) {
@@ -36,24 +43,32 @@ class LogInCommand : public Command {
         output = "0";
       }
 
-      write(pipefd[1], output.c_str(), output.length());
-      close(pipefd[1]);
-      exit(0);
+      write(fifo_fd, output.c_str(), output.length());
+      close(fifo_fd);
+      _exit(0);
     } else {
-      close(pipefd[1]);
-
-      char buffer[256];
-      int bytes = read(pipefd[0], buffer, sizeof(buffer));
-
-      close(pipefd[0]);
-      wait(NULL);
-
-      if (bytes > 0 && buffer[0] == '1') {
-        SessionManager::getInstance().login(this->user);
-        return std::string("Logged In Successfully!");
+      int fifo_fd = open(fifo_path, O_RDONLY);
+      if (fifo_fd == -1) {
+        unlink(fifo_path);
+        throw PipeException("Error opening FIFO for reading");
       }
 
-      return std::string("Failed Logging In: Wrong Username!");
+      char buffer[256];
+      int bytes = read(fifo_fd, buffer, sizeof(buffer) - 1);
+
+      close(fifo_fd);
+      wait(NULL);
+      unlink(fifo_path);
+
+      if (bytes > 0) {
+        buffer[bytes] = '\0';
+        if (buffer[0] == '1') {
+          SessionManager::getInstance().login(this->user);
+          return std::string("Logged In Successfully!");
+        }
+      }
+
+      throw AuthException("Failed Logging In: Wrong Username!");
     }
   }
 };
@@ -61,19 +76,22 @@ class LogInCommand : public Command {
 class GetLoggedUsersCommand : public Command {
  private:
  public:
+   // COMUNICARE PRIN PIPE ANONIM
   std::string execute() override {
     if (!SessionManager::getInstance().isLoggedIn()) {
-      return std::string("You must be logged in in order to use this command");
+      throw AuthException("You must be logged in to use this command!");
     }
 
     int pipefd[2];
     if (pipe(pipefd) == -1) {
-      return std::string("<ERROR> Error creating pipe\n");
+      throw PipeException("Error creating pipe");
     }
 
     pid_t pid = fork();
     if (pid == -1) {
-      return std::string("<ERROR> Error forking \n");
+      close(pipefd[0]);
+      close(pipefd[1]);
+      throw ForkException("Error Forking");
     }
 
     if (pid == 0) {
@@ -83,7 +101,7 @@ class GetLoggedUsersCommand : public Command {
 
       setutent();
       struct utmp* entry;
-      std::string output = "Logged in users: \n";
+      std::string output = "Logged in users: \n\n";
 
       std::map<std::string, utmp> active_sessions;
 
@@ -113,21 +131,26 @@ class GetLoggedUsersCommand : public Command {
       endutent();
       write(pipefd[1], output.c_str(), output.length());
       close(pipefd[1]);
-      exit(0);
+      _exit(0);
     } else {
       close(pipefd[1]);
 
       char buffer[1024];
+      std::string output;
       int bytes = read(pipefd[0], buffer, sizeof(buffer));
       if (bytes > 0) {
         buffer[bytes] = '\0';
-        return std::string(buffer);
+        output = buffer;
       }
 
       close(pipefd[0]);
       wait(NULL);
 
-      return std::string("Can't read utmp");
+      if (bytes > 0) {
+        return output;
+      }
+
+      throw FileException("Can't read utmp!");
     }
   }
 };
@@ -138,7 +161,7 @@ class LogOutCommand : public Command {
     if (SessionManager::getInstance().logout()) {
       return std::string("Logged Out Successfully");
     } else {
-      return std::string("Can't log out if you're not logged in!");
+      throw AuthException("Can't log out if you're not logged in!");
     }
   }
 };
@@ -158,12 +181,20 @@ class GetProcInfoCommand : public Command {
   // COMUNICARE PRIN SOCKETPAIR
   std::string execute() override {
     if (!SessionManager::getInstance().isLoggedIn()) {
-      return std::string("You must be logged in to use this command!");
+      throw AuthException("You must be logged in to use this command!");
     }
 
     int sockets[2];
-    socketpair(AF_UNIX, SOCK_STREAM, 0, sockets);
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sockets) == -1) {  // Check FIRST!
+      throw PipeException("Error creating socketpair");
+    }
+
     int pid = fork();
+    if (pid == -1) {
+      close(sockets[0]);
+      close(sockets[1]);
+      throw ForkException("Error Forking");
+    }
 
     // 0 - parinte
     // 1 - fiu
@@ -173,7 +204,10 @@ class GetProcInfoCommand : public Command {
       std::string path = "/proc/" + process + "/status";
       std::ifstream file(path);
       if (!file.is_open()) {
-        return std::string("Error opening " + path);
+        std::string err = "Cannot open " + path;
+        write(sockets[1], err.c_str(), err.length());
+        close(sockets[1]);
+        _exit(1);
       }
 
       std::string name, ppid, uid, vmsize, state;
@@ -197,13 +231,15 @@ class GetProcInfoCommand : public Command {
         }
       }
 
+      vmsize = vmsize.empty() ? std::string("none") : vmsize;
+
       std::string output = "Name: " + name + " | State: " + state +
                            " | UID: " + uid + " | PPID: " + ppid +
                            " | VmSize: " + vmsize;
 
       write(sockets[1], output.c_str(), output.length());
       close(sockets[1]);
-      exit(0);
+      _exit(0);
     } else {
       close(sockets[1]);
       char buffer[1024];
@@ -217,6 +253,10 @@ class GetProcInfoCommand : public Command {
 
       wait(NULL);
       close(sockets[0]);
+
+      if (output.find("Cannot open ") != std::string::npos) {
+        throw FileException(output.c_str());
+      }
 
       return output;
     }
@@ -247,7 +287,7 @@ class CommandFactory {
 
       return std::make_unique<GetProcInfoCommand>(pid);
     } else {
-      throw std::invalid_argument("Invalid command -> " + command);
+      throw InvalidCommandException("Invalid Command!");
     }
   }
 };

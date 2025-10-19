@@ -1,23 +1,24 @@
-#include "headers/include_libs.h"
+#include "../headers/include_libs.h"
 
 void cleanup() {
   unlink("./temp/server2client");
   unlink("./temp/client2server");
+  unlink("./temp/login_fifo");
   rmdir("./temp");
 }
 
 int main(int argc, char** argv) {
   atexit(cleanup);
 
-  // COMUNICARE PRIN FIFO
-
   mkdir("./temp", 0777);
   if (mkfifo("./temp/server2client", 0777) == -1) {
-    std::cout << "<SERVER> Error code: " << errno << '\n';
+    std::cout << "<ERROR> FIFO-ul server2client probabil exista deja, ruleaza "
+                 "din nou aplicatia!\n";
     exit(1);
   }
   if (mkfifo("./temp/client2server", 0777) == -1) {
-    std::cout << "<SERVER> Error code: " << errno << '\n';
+    std::cout << "<ERROR> FIFO-ul client2server probabil exista deja, ruleaza "
+                 "din nou aplicatia!\n";
     exit(1);
   }
 
@@ -63,7 +64,7 @@ int main(int argc, char** argv) {
         std::cout << "Quitting...\n";
         break;
       }
-    } catch (std::invalid_argument& e) {
+    } catch (std::runtime_error& e) {
       std::string error = "<ERROR> " + std::string(e.what());
       int len = error.length();
       write(s2c, &len, sizeof(len));
