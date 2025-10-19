@@ -1,6 +1,7 @@
 # client-server-ipc
 
 Project done as homework for a Uni Subject.
+Client App 'speaks' to the Server through a FIFO file, same goes the other way.
 
 # How To Use
 

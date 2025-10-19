@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
     int bytes = read(c2s, &clientBuffer, sizeof(clientBuffer));
 
     if (bytes <= 0) {
-      std::cout << "<SERVER> Clientul s-a deconectat.\n Closing Server...\n";
+      std::cout << "\n<SERVER> Clientul s-a deconectat.\n Closing Server...\n";
       break;
     }
     clientBuffer[bytes] = '\0';

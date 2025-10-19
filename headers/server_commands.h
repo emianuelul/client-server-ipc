@@ -29,8 +29,7 @@ class GetLoggedUsersCommand : public Command {
  public:
   std::string execute() override {
     if (!SessionManager::getInstance().isLoggedIn()) {
-      return std::string(
-          "You must be logged in in order to use this command\n");
+      return std::string("You must be logged in in order to use this command");
     }
 
     int pipefd[2];
@@ -121,7 +120,69 @@ class GetProcInfoCommand : public Command {
 
  public:
   GetProcInfoCommand(std::string process) { this->process = process; }
-  std::string execute() override { return std::string("Process info...\n"); }
+  std::string execute() override {
+    if (!SessionManager::getInstance().isLoggedIn()) {
+      return std::string("You must be logged in to use this command!");
+    }
+
+    int sockets[2];
+    socketpair(AF_UNIX, SOCK_STREAM, 0, sockets);
+    int pid = fork();
+
+    // 0 - parinte
+    // 1 - fiu
+    if (pid == 0) {
+      close(sockets[0]);
+
+      std::string path = "/proc/" + process + "/status";
+      std::ifstream file(path);
+      if (!file.is_open()) {
+        return std::string("Error opening " + path);
+      }
+
+      std::string name, ppid, uid, vmsize, state;
+      std::string line;
+      while (std::getline(file, line)) {
+        if (line.find("Name:") == 0) {
+          name = line.substr(line.find(":") + 1);
+          name.erase(0, name.find_first_not_of(" \n\t"));
+        } else if (line.find("State:") == 0) {
+          state = line.substr(line.find(":") + 1);
+          state.erase(0, state.find_first_not_of(" \n\t"));
+        } else if (line.find("Uid:") == 0) {
+          uid = line.substr(line.find(":") + 1);
+          uid.erase(0, uid.find_first_not_of(" \n\t"));
+        } else if (line.find("PPid:") == 0) {
+          ppid = line.substr(line.find(":") + 1);
+          ppid.erase(0, ppid.find_first_not_of(" \n\t"));
+        } else if (line.find("VmSize:") == 0) {
+          vmsize = line.substr(line.find(":") + 1);
+          vmsize.erase(0, vmsize.find_first_not_of(" \n\t"));
+        }
+      }
+
+      std::string output = "Name: " + name + " | State: " + state +
+                           " | UID: " + uid + " | PPID: " + ppid +
+                           " | VmSize: " + vmsize;
+
+      write(sockets[1], output.c_str(), output.length());
+      close(sockets[1]);
+      exit(0);
+    } else {
+      close(sockets[1]);
+      char buffer[1024];
+      std::string output = "";
+
+      int bytes = read(sockets[0], buffer, sizeof(buffer));
+      if (bytes > 0) {
+        buffer[bytes] = '\0';
+        output = buffer;
+      }
+
+      wait(NULL);
+      return output;
+    }
+  }
 };
 
 class CommandFactory {
