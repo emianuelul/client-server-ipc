@@ -9,6 +9,8 @@ void cleanup() {
 int main(int argc, char** argv) {
   atexit(cleanup);
 
+  // COMUNICARE PRIN FIFO
+
   mkdir("./temp", 0777);
   if (mkfifo("./temp/server2client", 0777) == -1) {
     std::cout << "<SERVER> Error code: " << errno << '\n';
@@ -53,6 +55,8 @@ int main(int argc, char** argv) {
 
       std::string feedback = "<SERVER> ";
       feedback += response;
+      int len = feedback.length();
+      write(s2c, &len, sizeof(int));
       write(s2c, feedback.c_str(), feedback.length());
 
       if (response == "QUIT") {
@@ -61,6 +65,8 @@ int main(int argc, char** argv) {
       }
     } catch (std::invalid_argument& e) {
       std::string error = "<ERROR> " + std::string(e.what());
+      int len = error.length();
+      write(s2c, &len, sizeof(len));
       write(s2c, error.c_str(), error.length());
     }
   }

@@ -15,11 +15,45 @@ class LogInCommand : public Command {
  public:
   LogInCommand(std::string user) : user(user) {}
 
+  // COMUNICARE PRIN PIPE-URI ANONIME
   std::string execute() override {
-    if (SessionManager::getInstance().login(this->user)) {
-      return std::string("Logged In Successfully");
+    int pipefd[2];
+    pipe(pipefd);
+
+    int pid = fork();
+
+    if (pid == -1) {
+      return std::string("<ERROR> Error forking");
+    }
+
+    if (pid == 0) {
+      close(pipefd[0]);
+
+      std::string output;
+      if (SessionManager::getInstance().login(this->user)) {
+        output = "1";
+      } else {
+        output = "0";
+      }
+
+      write(pipefd[1], output.c_str(), output.length());
+      close(pipefd[1]);
+      exit(0);
     } else {
-      return std::string("Wrong Name");
+      close(pipefd[1]);
+
+      char buffer[256];
+      int bytes = read(pipefd[0], buffer, sizeof(buffer));
+
+      close(pipefd[0]);
+      wait(NULL);
+
+      if (bytes > 0 && buffer[0] == '1') {
+        SessionManager::getInstance().login(this->user);
+        return std::string("Logged In Successfully!");
+      }
+
+      return std::string("Failed Logging In: Wrong Username!");
     }
   }
 };
@@ -90,10 +124,10 @@ class GetLoggedUsersCommand : public Command {
         return std::string(buffer);
       }
 
-      return std::string("Can't read utmp");
-
       close(pipefd[0]);
       wait(NULL);
+
+      return std::string("Can't read utmp");
     }
   }
 };
@@ -120,6 +154,8 @@ class GetProcInfoCommand : public Command {
 
  public:
   GetProcInfoCommand(std::string process) { this->process = process; }
+
+  // COMUNICARE PRIN SOCKETPAIR
   std::string execute() override {
     if (!SessionManager::getInstance().isLoggedIn()) {
       return std::string("You must be logged in to use this command!");
@@ -180,6 +216,8 @@ class GetProcInfoCommand : public Command {
       }
 
       wait(NULL);
+      close(sockets[0]);
+
       return output;
     }
   }

@@ -24,7 +24,13 @@ int main(int argc, char** argv) {
     write(c2s, input.c_str(), input.length());
 
     char serverBuffer[1024];
-    int bytes = read(s2c, &serverBuffer, sizeof(serverBuffer));
+    int len;
+    int bytes = read(s2c, &len, sizeof(int));
+
+    if (bytes != sizeof(len))
+      break;
+
+    bytes = read(s2c, serverBuffer, len);
 
     if (bytes > 0) {
       serverBuffer[bytes] = '\0';
